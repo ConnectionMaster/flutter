@@ -34,7 +34,12 @@ import 'gesture_detector.dart';
 /// [WidgetInspector.selectButtonBuilder].
 typedef InspectorSelectButtonBuilder = Widget Function(BuildContext context, VoidCallback onPressed);
 
-typedef _RegisterServiceExtensionCallback = void Function({
+/// Signature for a  method that registers the service extension `callback` with
+/// the given `name`.
+///
+/// Used as argument to [WidgetInspectorService.initServiceExtensions]. The
+/// [BindingBase.registerServiceExtension] implements this signature.
+typedef RegisterServiceExtensionCallback = void Function({
   required String name,
   required ServiceExtensionCallback callback,
 });
@@ -743,7 +748,7 @@ mixin WidgetInspectorService {
 
   FlutterExceptionHandler? _structuredExceptionHandler;
 
-  late _RegisterServiceExtensionCallback _registerServiceExtensionCallback;
+  late RegisterServiceExtensionCallback _registerServiceExtensionCallback;
   /// Registers a service extension method with the given name (full
   /// name "ext.flutter.inspector.name").
   ///
@@ -905,7 +910,7 @@ mixin WidgetInspectorService {
   Future<void> forceRebuild() {
     final WidgetsBinding binding = WidgetsBinding.instance!;
     if (binding.renderViewElement != null) {
-      binding.buildOwner!.reassemble(binding.renderViewElement!);
+      binding.buildOwner!.reassemble(binding.renderViewElement!, null);
       return binding.endOfFrame;
     }
     return Future<void>.value();
@@ -975,7 +980,7 @@ mixin WidgetInspectorService {
   ///  * <https://github.com/dart-lang/sdk/blob/master/runtime/vm/service/service.md#rpcs-requests-and-responses>
   ///  * [BindingBase.initServiceExtensions], which explains when service
   ///    extensions can be used.
-  void initServiceExtensions(_RegisterServiceExtensionCallback registerServiceExtensionCallback) {
+  void initServiceExtensions(RegisterServiceExtensionCallback registerServiceExtensionCallback) {
     _structuredExceptionHandler = _reportError;
     if (isStructuredErrorsEnabled()) {
       FlutterError.onError = _structuredExceptionHandler;
@@ -1522,7 +1527,7 @@ mixin WidgetInspectorService {
   }
 
   bool _isLocalCreationLocation(_Location? location) {
-    if (location == null || location.file == null) {
+    if (location == null) {
       return false;
     }
     final String file = Uri.parse(location.file).path;
@@ -2130,6 +2135,24 @@ class _ElementLocationStatsTracker {
       }
       json['newLocations'] = locationsJson;
     }
+
+    // Add in a data structure for the location names.
+    if (newLocations.isNotEmpty) {
+      final Map<String, Map<int, String>> namesJson = <String, Map<int, String>>{};
+      for (final _LocationCount entry in newLocations) {
+        final _Location location = entry.location;
+        final Map<int, String> jsonForFile = namesJson.putIfAbsent(
+          location.file,
+              () => <int, String>{},
+        );
+        final String? name = location.name;
+        if (name != null) {
+          jsonForFile[entry.id] = name;
+        }
+      }
+      json['newLocationsNames'] = namesJson;
+    }
+
     resetCounts();
     newLocations.clear();
     return json;
@@ -2184,7 +2207,7 @@ class WidgetInspector extends StatefulWidget {
   final InspectorSelectButtonBuilder? selectButtonBuilder;
 
   @override
-  _WidgetInspectorState createState() => _WidgetInspectorState();
+  State<WidgetInspector> createState() => _WidgetInspectorState();
 }
 
 class _WidgetInspectorState extends State<WidgetInspector>
@@ -2448,6 +2471,11 @@ class InspectorSelection {
 
   Element? _currentElement;
   set currentElement(Element? element) {
+    if (element?.debugIsDefunct == true) {
+      _currentElement = null;
+      _current = null;
+      return;
+    }
     if (currentElement != element) {
       _currentElement = element;
       _current = element!.findRenderObject();
@@ -2839,8 +2867,7 @@ class _Location {
     required this.file,
     required this.line,
     required this.column,
-    required this.name,
-    required this.parameterLocations,
+    this.name,
   });
 
   /// File path of the location.
@@ -2848,14 +2875,12 @@ class _Location {
 
   /// 1-based line number.
   final int line;
+
   /// 1-based column number.
   final int column;
 
   /// Optional name of the parameter or function at this location.
   final String? name;
-
-  /// Optional locations of the parameters of the member at this location.
-  final List<_Location>? parameterLocations;
 
   Map<String, Object?> toJsonMap() {
     final Map<String, Object?> json = <String, Object?>{
@@ -2865,11 +2890,6 @@ class _Location {
     };
     if (name != null) {
       json['name'] = name;
-    }
-    if (parameterLocations != null) {
-      json['parameterLocations'] = parameterLocations!.map<Map<String, Object?>>(
-        (_Location location) => location.toJsonMap(),
-      ).toList();
     }
     return json;
   }

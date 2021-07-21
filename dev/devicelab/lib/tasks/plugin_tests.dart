@@ -29,8 +29,8 @@ class PluginTest {
 
   final String buildTarget;
   final List<String> options;
-  final Map<String, String> pluginCreateEnvironment;
-  final Map<String, String> appCreateEnvironment;
+  final Map<String, String>? pluginCreateEnvironment;
+  final Map<String, String>? appCreateEnvironment;
 
   Future<TaskResult> call() async {
     final Directory tempDir =
@@ -75,7 +75,7 @@ class _FlutterProject {
 
   String get rootPath => path.join(parent.path, name);
 
-  Future<void> addPlugin(String plugin, {String pluginPath}) async {
+  Future<void> addPlugin(String plugin, {String? pluginPath}) async {
     final File pubspec = File(path.join(rootPath, 'pubspec.yaml'));
     String content = await pubspec.readAsString();
     final String dependency =
@@ -98,9 +98,9 @@ class _FlutterProject {
       List<String> options,
       String target,
       {
-        String name,
-        String template,
-        Map<String, String> environment,
+        required String name,
+        required String template,
+        Map<String, String>? environment,
       }) async {
     await inDirectory(directory, () async {
       await flutter(

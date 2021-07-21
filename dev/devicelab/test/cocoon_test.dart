@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// @dart = 2.8
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -105,14 +107,15 @@ void main() {
 
     test('uploads metrics sends expected post body', () async {
       _processResult = ProcessResult(1, 0, commitSha, '');
-      const String uploadMetricsRequestWithSpaces = '{"CommitBranch":"master","CommitSha":"a4952838bf288a81d8ea11edfd4b4cd649fa94cc","BuilderName":"builder a b c","NewStatus":"Succeeded","ResultData":{},"BenchmarkScoreKeys":[]}';
+      const String uploadMetricsRequestWithSpaces =
+          '{"CommitBranch":"master","CommitSha":"a4952838bf288a81d8ea11edfd4b4cd649fa94cc","BuilderName":"builder a b c","NewStatus":"Succeeded","ResultData":{},"BenchmarkScoreKeys":[],"TestFlaky":false}';
       final MockClient client = MockClient((Request request) async {
         if (request.body == uploadMetricsRequestWithSpaces) {
           return Response('{}', 200);
         }
 
         return Response('Expected: $uploadMetricsRequestWithSpaces\nReceived: ${request.body}', 500);
-     });
+      });
       cocoon = Cocoon(
         fs: fs,
         httpClient: client,
@@ -125,12 +128,12 @@ void main() {
       const String updateTaskJson = '{'
           '"CommitBranch":"master",'
           '"CommitSha":"$commitSha",'
-          '"BuilderName":"builder a b c",'  //ignore: missing_whitespace_between_adjacent_strings
+          '"BuilderName":"builder a b c",' //ignore: missing_whitespace_between_adjacent_strings
           '"NewStatus":"Succeeded",'
           '"ResultData":{},'
           '"BenchmarkScoreKeys":[]}';
       fs.file(resultsPath).writeAsStringSync(updateTaskJson);
-      await cocoon.sendResultsPath(resultsPath);
+      await cocoon.sendResultsPath(resultsPath: resultsPath);
     });
 
     test('uploads expected update task payload from results file', () async {
@@ -152,22 +155,7 @@ void main() {
           '"ResultData":{"i":0.0,"j":0.0,"not_a_metric":"something"},'
           '"BenchmarkScoreKeys":["i","j"]}';
       fs.file(resultsPath).writeAsStringSync(updateTaskJson);
-      await cocoon.sendResultsPath(resultsPath);
-    });
-
-    test('sends expected request from successful task', () async {
-      mockClient = MockClient((Request request) async => Response('{}', 200));
-
-      cocoon = Cocoon(
-        serviceAccountTokenPath: serviceAccountTokenPath,
-        fs: fs,
-        httpClient: mockClient,
-        requestRetryLimit: 0,
-      );
-
-      final TaskResult result = TaskResult.success(<String, dynamic>{});
-      // This should not throw an error.
-      await cocoon.sendTaskResult(builderName: 'builderAbc', gitBranch: 'branchAbc', result: result);
+      await cocoon.sendResultsPath(resultsPath: resultsPath);
     });
 
     test('throws client exception on non-200 responses', () async {
@@ -180,24 +168,17 @@ void main() {
         requestRetryLimit: 0,
       );
 
-      final TaskResult result = TaskResult.success(<String, dynamic>{});
-      expect(() => cocoon.sendTaskResult(builderName: 'builderAbc', gitBranch: 'branchAbc', result: result),
+      const String resultsPath = 'results.json';
+      const String updateTaskJson = '{'
+          '"CommitBranch":"master",'
+          '"CommitSha":"$commitSha",'
+          '"BuilderName":"builderAbc",'
+          '"NewStatus":"Succeeded",'
+          '"ResultData":{"i":0.0,"j":0.0,"not_a_metric":"something"},'
+          '"BenchmarkScoreKeys":["i","j"]}';
+      fs.file(resultsPath).writeAsStringSync(updateTaskJson);
+      expect(() => cocoon.sendResultsPath(resultsPath: resultsPath),
           throwsA(isA<ClientException>()));
-    });
-
-    test('null git branch throws error', () async {
-      mockClient = MockClient((Request request) async => Response('', 500));
-
-      cocoon = Cocoon(
-        serviceAccountTokenPath: serviceAccountTokenPath,
-        fs: fs,
-        httpClient: mockClient,
-        requestRetryLimit: 0,
-      );
-
-      final TaskResult result = TaskResult.success(<String, dynamic>{});
-      expect(() => cocoon.sendTaskResult(builderName: 'builderAbc', gitBranch: null, result: result),
-          throwsA(isA<AssertionError>()));
     });
   });
 
@@ -217,7 +198,7 @@ void main() {
 
     test('reads token from service account file with whitespace', () {
       final File serviceAccountFile = fs.file(serviceAccountTokenPath)..createSync();
-      serviceAccountFile.writeAsStringSync(serviceAccountToken + ' \n');
+      serviceAccountFile.writeAsStringSync('$serviceAccountToken \n');
       final AuthenticatedCocoonClient client = AuthenticatedCocoonClient(serviceAccountTokenPath, filesystem: fs);
       expect(client.serviceAccountToken, serviceAccountToken);
     });

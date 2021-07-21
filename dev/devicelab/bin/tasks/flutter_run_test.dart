@@ -6,7 +6,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter_devicelab/framework/adb.dart';
+import 'package:flutter_devicelab/common.dart';
+import 'package:flutter_devicelab/framework/devices.dart';
 import 'package:flutter_devicelab/framework/framework.dart';
 import 'package:flutter_devicelab/framework/task_result.dart';
 import 'package:flutter_devicelab/framework/utils.dart';
@@ -70,7 +71,7 @@ Future<TaskResult> createFlutterRunTask() async {
       }
     });
     await finished.future.timeout(const Duration(minutes: 1));
-    subscription.cancel();
+    unawaited(subscription.cancel());
     run.kill();
   });
   return passedTest && failedTest && skippedTest && finishedMessage && printMessage && writelnMessage
