@@ -729,13 +729,10 @@ abstract class ScrollPosition extends ViewportOffset with ScrollMetrics {
       AxisDirection.right => (SemanticsAction.scrollLeft, SemanticsAction.scrollRight),
     };
 
-    final Set<SemanticsAction> actions = <SemanticsAction>{};
-    if (pixels > minScrollExtent) {
-      actions.add(backward);
-    }
-    if (pixels < maxScrollExtent) {
-      actions.add(forward);
-    }
+    final Set<SemanticsAction> actions = <SemanticsAction>{
+      if (pixels > minScrollExtent) backward,
+      if (pixels < maxScrollExtent) forward,
+    };
 
     if (setEquals<SemanticsAction>(actions, _semanticActions)) {
       return;
@@ -852,6 +849,16 @@ abstract class ScrollPosition extends ViewportOffset with ScrollMetrics {
   ///
   /// Listeners added by stateful widgets should be removed in the widget's
   /// [State.dispose] method.
+  ///
+  /// {@tool dartpad}
+  /// This sample shows how you can trigger an auto-scroll, which aligns the last
+  /// partially visible fixed-height list item, by listening to this
+  /// notifier's value. This sort of thing can also be done by listening for
+  /// [ScrollEndNotification]s with a [NotificationListener]. An alternative
+  /// example is provided with [ScrollEndNotification].
+  ///
+  /// ** See code in examples/api/lib/widgets/scroll_position/is_scrolling_listener.0.dart **
+  /// {@end-tool}
   final ValueNotifier<bool> isScrollingNotifier = ValueNotifier<bool>(false);
 
   /// Animates the position from its current value to the given value.
